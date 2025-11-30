@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { WorkspaceHeader } from '@/components/workspace/Header';
 import { WorkspaceSidebar } from '@/components/workspace/Sidebar';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,7 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newMeetingTitle, setNewMeetingTitle] = useState('');
     const [newMeetingDate, setNewMeetingDate] = useState('');
+    const [newMeetingBook, setNewMeetingBook] = useState('');
     const [newMeetingParticipants, setNewMeetingParticipants] = useState<string[]>([]);
     const { showToast } = useToast();
     const router = useRouter();
@@ -38,13 +39,45 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     // Available participants (mock data)
     const availableParticipants = ['홍길동', '김철수', '이영희', '박민수', '최지영'];
 
+    // Available books (extracted from existing meetings)
+    const [availableBooks, setAvailableBooks] = useState<string[]>([]);
+    const [isAddingNewBook, setIsAddingNewBook] = useState(false);
+    const [newBookInput, setNewBookInput] = useState('');
+    const [showBookDropdown, setShowBookDropdown] = useState(false);
+    const bookDropdownRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         loadMeetings();
     }, []);
 
     useEffect(() => {
+        // Extract unique book titles from meetings
+        const uniqueBooks = Array.from(new Set(meetings.map(m => m.book)));
+        setAvailableBooks(uniqueBooks);
+    }, [meetings]);
+
+    useEffect(() => {
         applyFilters();
     }, [meetings, searchTitle, selectedSession, startDate, endDate]);
+
+    // Close book dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (bookDropdownRef.current && !bookDropdownRef.current.contains(event.target as Node)) {
+                setShowBookDropdown(false);
+                setIsAddingNewBook(false);
+                setNewBookInput('');
+            }
+        };
+
+        if (showBookDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showBookDropdown]);
 
     const loadMeetings = () => {
         // Mock data
@@ -110,6 +143,10 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
             showToast('진행 일자를 선택해주세요.', 'error');
             return;
         }
+        if (!newMeetingBook.trim()) {
+            showToast('책 제목을 입력해주세요.', 'error');
+            return;
+        }
         if (newMeetingParticipants.length === 0) {
             showToast('최소 1명의 참가자를 선택해주세요.', 'error');
             return;
@@ -125,13 +162,14 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
             title: newMeetingTitle,
             date: newMeetingDate,
             participants: newMeetingParticipants,
-            book: '새 책', // Default book name
+            book: newMeetingBook,
         };
 
         setMeetings([...meetings, newMeeting]);
         setIsCreateModalOpen(false);
         setNewMeetingTitle('');
         setNewMeetingDate('');
+        setNewMeetingBook('');
         setNewMeetingParticipants([]);
         showToast('새 문서가 생성되었습니다.', 'success');
 
@@ -145,6 +183,23 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
         } else {
             setNewMeetingParticipants([...newMeetingParticipants, participant]);
         }
+    };
+
+    const handleAddNewBook = () => {
+        if (!newBookInput.trim()) {
+            showToast('책 제목을 입력해주세요.', 'error');
+            return;
+        }
+        if (availableBooks.includes(newBookInput.trim())) {
+            showToast('이미 등록된 책입니다.', 'error');
+            return;
+        }
+        setNewMeetingBook(newBookInput.trim());
+        setAvailableBooks([...availableBooks, newBookInput.trim()]);
+        setNewBookInput('');
+        setIsAddingNewBook(false);
+        setShowBookDropdown(false);
+        showToast('새 책이 추가되었습니다.', 'success');
     };
 
     const handleRowClick = (meetingId: string) => {
@@ -398,7 +453,10 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
                     setIsCreateModalOpen(false);
                     setNewMeetingTitle('');
                     setNewMeetingDate('');
+                    setNewMeetingBook('');
                     setNewMeetingParticipants([]);
+                    setIsAddingNewBook(false);
+                    setNewBookInput('');
                 }}
                 title="새 문서 생성"
             >
@@ -428,6 +486,117 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
                             onChange={(e) => setNewMeetingDate(e.target.value)}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                         />
+                    </div>
+
+                    {/* Book Selection - Badge Style */}
+                    <div className="relative" ref={bookDropdownRef}>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            책 제목 <span className="text-red-500">*</span>
+                        </label>
+
+                        {/* Selected Book Badge */}
+                        {newMeetingBook && (
+                            <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-100 text-pink-700 rounded-md text-sm font-medium">
+                                {newMeetingBook}
+                                <button
+                                    onClick={() => setNewMeetingBook('')}
+                                    className="hover:bg-pink-200 rounded-full p-0.5 cursor-pointer"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Book Input Field */}
+                        {!newMeetingBook && (
+                            <div>
+                                <input
+                                    type="text"
+                                    placeholder="책 제목을 선택하거나 입력하세요"
+                                    value={newBookInput}
+                                    onChange={(e) => setNewBookInput(e.target.value)}
+                                    onFocus={() => setShowBookDropdown(true)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+
+                                {/* Dropdown */}
+                                {showBookDropdown && (
+                                    <div className="absolute left-0 right-0 mt-2 p-3 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                                        <p className="text-sm text-gray-600 mb-3">Select an option or create one</p>
+
+                                        {/* Existing Books List */}
+                                        {availableBooks.length > 0 && (
+                                            <div className="space-y-2 mb-3">
+                                                {availableBooks.map((book) => (
+                                                    <button
+                                                        key={book}
+                                                        onClick={() => {
+                                                            setNewMeetingBook(book);
+                                                            setShowBookDropdown(false);
+                                                            setNewBookInput('');
+                                                        }}
+                                                        className="w-full flex items-center gap-3 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer text-left group"
+                                                    >
+                                                        <div className="flex items-center gap-2 text-gray-400">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                                            </svg>
+                                                        </div>
+                                                        <span className="text-sm text-gray-700 group-hover:text-gray-900">{book}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Add New Book */}
+                                        {isAddingNewBook ? (
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="새 책 제목 입력"
+                                                    value={newBookInput}
+                                                    onChange={(e) => setNewBookInput(e.target.value)}
+                                                    onKeyPress={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleAddNewBook();
+                                                        }
+                                                    }}
+                                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                                    autoFocus
+                                                />
+                                                <button
+                                                    onClick={handleAddNewBook}
+                                                    className="px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 cursor-pointer"
+                                                >
+                                                    추가
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setIsAddingNewBook(false);
+                                                        setNewBookInput('');
+                                                    }}
+                                                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                                                >
+                                                    취소
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setIsAddingNewBook(true)}
+                                                className="w-full flex items-center gap-2 p-2.5 bg-white border border-dashed border-gray-300 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-colors cursor-pointer text-left"
+                                            >
+                                                <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                                <span className="text-sm text-emerald-600 font-medium">새 책 추가</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Participants Selection */}
@@ -472,7 +641,10 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
                                 setIsCreateModalOpen(false);
                                 setNewMeetingTitle('');
                                 setNewMeetingDate('');
+                                setNewMeetingBook('');
                                 setNewMeetingParticipants([]);
+                                setIsAddingNewBook(false);
+                                setNewBookInput('');
                             }}
                             className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                         >
