@@ -5,6 +5,7 @@ const apiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: true, // 쿠키를 자동으로 포함
 });
 
 export default apiClient;

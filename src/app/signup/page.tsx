@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api';
@@ -43,7 +44,7 @@ export default function SignupPage() {
         setIsCheckingUserid(true);
         try {
             const response = await apiClient.post('/users/check-userid', {
-                id: userid
+                userId: userid
             });
 
             // response.data.data.available로 중복 여부 확인
@@ -117,6 +118,7 @@ export default function SignupPage() {
 
             showToast(data.message || '회원가입이 완료되었습니다.', 'success');
 
+            // 성공 시 로딩 상태 유지 (페이지 이동까지)
             // Redirect to login page after 1.5 seconds
             setTimeout(() => {
                 router.push('/login');
@@ -137,7 +139,8 @@ export default function SignupPage() {
                 // Something else happened
                 showToast('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
             }
-        } finally {
+
+            // 에러 발생 시에만 로딩 해제
             setIsLoading(false);
         }
     };
@@ -176,6 +179,9 @@ export default function SignupPage() {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-4 py-12 relative overflow-hidden">
+            {/* Loading Overlay */}
+            <LoadingOverlay isVisible={isLoading} />
+
             {/* Background decorative elements */}
             <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
             <div className="absolute top-0 right-0 w-96 h-96 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>

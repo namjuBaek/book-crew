@@ -5,7 +5,10 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import apiClient from '@/lib/api';
 
 interface Workspace {
     id: string;
@@ -16,15 +19,35 @@ interface Workspace {
 }
 
 export default function WorkspaceJoinPage() {
+    const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
     const [workspaceName, setWorkspaceName] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [invitedWorkspaces, setInvitedWorkspaces] = useState<Workspace[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
     const { showToast } = useToast();
     const router = useRouter();
 
+    // 로그아웃 처리
+    const handleLogout = async () => {
+        try {
+            await apiClient.post('/users/logout');
+            showToast('로그아웃되었습니다.', 'success');
+            router.push('/login');
+        } catch (error) {
+            console.error('Logout error:', error);
+            // 에러가 발생해도 로그인 페이지로 이동
+            router.push('/login');
+        }
+    };
+
     // Mock API: Fetch invited workspaces
     useEffect(() => {
+        // 인증되지 않은 경우 데이터 로딩하지 않음
+        if (!isAuthenticated || isAuthLoading) {
+            return;
+        }
+
         const fetchInvitedWorkspaces = async () => {
             setIsLoading(true);
             try {
@@ -66,7 +89,17 @@ export default function WorkspaceJoinPage() {
         };
 
         fetchInvitedWorkspaces();
-    }, [showToast]);
+    }, [showToast, isAuthenticated, isAuthLoading]);
+
+    // 인증 확인 중이면 로딩 표시
+    if (isAuthLoading) {
+        return <LoadingOverlay isVisible={true} message="인증 확인 중..." />;
+    }
+
+    // 인증되지 않은 경우 (useAuth가 자동으로 리다이렉트하지만 안전장치)
+    if (!isAuthenticated) {
+        return null;
+    }
 
     // Handle workspace creation
     const handleCreateWorkspace = async (e: React.FormEvent) => {
@@ -122,7 +155,7 @@ export default function WorkspaceJoinPage() {
             <div className="absolute -bottom-8 left-20 w-96 h-96 bg-green-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
 
             {/* Header */}
-            <header className="relative z-10 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
+            <header className="relative z-50 bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
                 <div className="max-w-6xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -140,16 +173,56 @@ export default function WorkspaceJoinPage() {
                                 BookCrew
                             </h1>
                         </div>
-                        <Button
-                            variant="primary"
-                            onClick={() => setIsCreateModalOpen(true)}
-                            className="flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            모임 생성
-                        </Button>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="primary"
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                모임 생성
+                            </Button>
+
+                            {/* Profile Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                                    className="flex items-center gap-2 p-2 rounded-lg hover:bg-emerald-50 transition-colors"
+                                >
+                                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
+                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                        </svg>
+                                    </div>
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                {isProfileDropdownOpen && (
+                                    <>
+                                        {/* Backdrop */}
+                                        <div
+                                            className="fixed inset-0 z-10"
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                        />
+
+                                        {/* Dropdown */}
+                                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-20">
+                                            <button
+                                                onClick={handleLogout}
+                                                className="w-full px-4 py-2 text-left text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors flex items-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                                </svg>
+                                                로그아웃
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>
