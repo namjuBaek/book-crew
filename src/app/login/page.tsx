@@ -15,37 +15,17 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [autoLogin, setAutoLogin] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
     const { showToast } = useToast();
     const router = useRouter();
+    // 페이지 로드 시 로그인 상태 확인 로직 제거
+    // 이유: 인증 실패로 리다이렉트 된 경우 무한 루프 발생 가능성 차단
 
-    // 페이지 로드 시 로그인 상태 확인
-    useEffect(() => {
-        const checkAuthStatus = async () => {
-            try {
-                // 쿠키에 accessToken이 있는지 확인하기 위해 간단한 API 호출
-                // 예: /users/me 또는 /auth/verify 같은 엔드포인트
-                const response = await apiClient.get('/users/me');
-
-                if (response.data.success) {
-                    // 이미 로그인되어 있으면 리다이렉트
-                    router.replace('/workspace-join');
-                }
-            } catch (error) {
-                // 토큰이 없거나 유효하지 않으면 로그인 페이지 유지
-                console.log('Not authenticated');
-            } finally {
-                setIsCheckingAuth(false);
-            }
-        };
-
-        checkAuthStatus();
-    }, [router]);
-
+    /*
     // 인증 확인 중이면 로딩 표시
     if (isCheckingAuth) {
         return <LoadingOverlay isVisible={true} message="로그인 확인 중..." />;
     }
+    */
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();

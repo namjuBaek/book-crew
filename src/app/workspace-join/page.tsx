@@ -13,18 +13,30 @@ import apiClient from '@/lib/api';
 interface Workspace {
     id: string;
     name: string;
-    invitedBy: string;
-    memberCount: number;
+    description: string | null;
+    coverImage: string | null;
     createdAt: string;
+    role?: 'ADMIN' | 'MEMBER';
+    isJoined?: boolean;
 }
 
 export default function WorkspaceJoinPage() {
     const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
     const [workspaceName, setWorkspaceName] = useState('');
+    const [workspaceDescription, setWorkspaceDescription] = useState('');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [invitedWorkspaces, setInvitedWorkspaces] = useState<Workspace[]>([]);
+    const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+
+    // Join Modal States
+    const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResult, setSearchResult] = useState<Workspace[]>([]);
+    const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
+    const [joinCode, setJoinCode] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
+
     const { showToast } = useToast();
     const router = useRouter();
 
@@ -41,54 +53,27 @@ export default function WorkspaceJoinPage() {
         }
     };
 
-    // Mock API: Fetch invited workspaces
+    // Fetch joined workspaces
     useEffect(() => {
         // 인증되지 않은 경우 데이터 로딩하지 않음
         if (!isAuthenticated || isAuthLoading) {
             return;
         }
 
-        const fetchInvitedWorkspaces = async () => {
+        const fetchWorkspaces = async () => {
             setIsLoading(true);
             try {
-                // Simulate API call
-                await new Promise((resolve) => setTimeout(resolve, 800));
-
-                // Mock data
-                const mockWorkspaces: Workspace[] = [
-                    {
-                        id: '1',
-                        name: '독서모임 북클럽',
-                        invitedBy: '김철수',
-                        memberCount: 8,
-                        createdAt: '2025-01-15',
-                    },
-                    {
-                        id: '2',
-                        name: '주말 독서 모임',
-                        invitedBy: '이영희',
-                        memberCount: 5,
-                        createdAt: '2025-02-01',
-                    },
-                    {
-                        id: '3',
-                        name: '비즈니스 북 스터디',
-                        invitedBy: '박민수',
-                        memberCount: 12,
-                        createdAt: '2025-01-20',
-                    },
-                ];
-
-                setInvitedWorkspaces(mockWorkspaces);
-                showToast('초대받은 모임 목록을 불러왔습니다.', 'success');
+                const response = await apiClient.get('/workspaces');
+                setWorkspaces(response.data.data);
             } catch (error) {
+                console.error('Failed to fetch workspaces:', error);
                 showToast('모임 목록을 불러오는데 실패했습니다.', 'error');
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchInvitedWorkspaces();
+        fetchWorkspaces();
     }, [showToast, isAuthenticated, isAuthLoading]);
 
     // 인증 확인 중이면 로딩 표시
@@ -116,35 +101,88 @@ export default function WorkspaceJoinPage() {
         }
 
         try {
-            // Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            const response = await apiClient.post('/workspaces', {
+                workspaceName: workspaceName,
+                description: workspaceDescription
+            });
 
-            showToast(`"${workspaceName}" 모임이 생성되었습니다!`, 'success');
+            const { id, name } = response.data.data;
 
-            // Redirect to workspace home after creation
-            setTimeout(() => {
-                router.push(`/workspace/new`);
-            }, 1000);
-        } catch (error) {
-            showToast('모임 생성에 실패했습니다.', 'error');
+            showToast(`"${name}" 모임이 생성되었습니다!`, 'success');
+
+            setIsCreateModalOpen(false);
+            setWorkspaceName('');
+            setWorkspaceDescription('');
+
+            // Redirect to workspace home
+            router.push(`/workspace/${id}`);
+        } catch (error: any) {
+            console.error('Workspace creation error:', error);
+            const errorMessage = error.response?.data?.message || '모임 생성에 실패했습니다.';
+            showToast(errorMessage, 'error');
         }
     };
 
-    // Handle workspace join
-    const handleJoinWorkspace = async (workspace: Workspace) => {
-        try {
-            // Simulate API call
-            await new Promise((resolve) => setTimeout(resolve, 500));
+    // Handle workspace search
+    const handleSearchWorkspace = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!searchQuery.trim()) return;
 
-            showToast(`"${workspace.name}" 모임에 참여했습니다!`, 'success');
+        setIsSearching(true);
+        setSearchResult([]);
+        setSelectedWorkspace(null);
+
+        try {
+            const response = await apiClient.get(`/workspaces/search?search=${encodeURIComponent(searchQuery)}`);
+
+            if (response.data.success) {
+                const results = response.data.data;
+                setSearchResult(results);
+
+                if (results.length === 0) {
+                    showToast('검색 결과가 없습니다.', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            showToast('모임 검색에 실패했습니다.', 'error');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    // Handle join request with code
+    const handleJoinWithCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedWorkspace || !joinCode.trim()) return;
+
+        try {
+            await apiClient.post(`/workspaces/join`, {
+                workspaceId: selectedWorkspace.id,
+                workspacePassword: joinCode
+            });
+
+            showToast(`"${selectedWorkspace.name}" 모임에 가입되었습니다!`, 'success');
+            setIsJoinModalOpen(false);
+            setJoinCode('');
+
+            const joinedWorkspaceId = selectedWorkspace.id;
+            setSelectedWorkspace(null);
+            setSearchQuery('');
+            setSearchResult([]);
 
             // Redirect to workspace home
-            setTimeout(() => {
-                router.push(`/workspace/${workspace.id}`);
-            }, 1000);
-        } catch (error) {
-            showToast('모임 참여에 실패했습니다.', 'error');
+            router.push(`/workspace/${joinedWorkspaceId}`);
+        } catch (error: any) {
+            console.error('Join error:', error);
+            const errorMessage = error.response?.data?.message || '참여 코드가 올바르지 않거나 가입에 실패했습니다.';
+            showToast(errorMessage, 'error');
         }
+    };
+
+    // Handle workspace enter
+    const handleEnterWorkspace = (workspaceId: string) => {
+        router.push(`/workspace/${workspaceId}`);
     };
 
     return (
@@ -174,6 +212,16 @@ export default function WorkspaceJoinPage() {
                             </h1>
                         </div>
                         <div className="flex items-center gap-3">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setIsJoinModalOpen(true)}
+                                className="flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                </svg>
+                                모임 참여
+                            </Button>
                             <Button
                                 variant="primary"
                                 onClick={() => setIsCreateModalOpen(true)}
@@ -230,16 +278,16 @@ export default function WorkspaceJoinPage() {
             {/* Main Content */}
             <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-6 py-12">
                 <div className="mb-8 animate-fade-in">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2">모임 참여하기</h2>
-                    <p className="text-gray-600">초대받은 독서 모임에 참여하거나 새로운 모임을 만들어보세요.</p>
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2">참여 중인 모임</h2>
+                    <p className="text-gray-600">참여 중인 독서 모임 목록입니다. 새로운 모임을 만들어보세요.</p>
                 </div>
 
-                {/* Invited Workspaces List */}
+                {/* Workspaces List */}
                 {isLoading ? (
                     <div className="flex items-center justify-center py-20">
                         <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent" />
                     </div>
-                ) : invitedWorkspaces.length === 0 ? (
+                ) : workspaces.length === 0 ? (
                     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-12 text-center animate-slide-up">
                         <div className="flex justify-center mb-4">
                             <div className="bg-emerald-100 p-4 rounded-full">
@@ -248,7 +296,7 @@ export default function WorkspaceJoinPage() {
                                 </svg>
                             </div>
                         </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">초대받은 모임이 없습니다</h3>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">참여 중인 모임이 없습니다</h3>
                         <p className="text-gray-600 mb-6">새로운 모임을 만들어 독서 여정을 시작해보세요!</p>
                         <Button onClick={() => setIsCreateModalOpen(true)}>
                             모임 만들기
@@ -256,11 +304,12 @@ export default function WorkspaceJoinPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
-                        {invitedWorkspaces.map((workspace, index) => (
+                        {workspaces.map((workspace, index) => (
                             <div
                                 key={workspace.id}
-                                className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                                className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer"
                                 style={{ animationDelay: `${index * 100}ms` }}
+                                onClick={() => handleEnterWorkspace(workspace.id)}
                             >
                                 {/* Workspace Icon */}
                                 <div className="flex items-center gap-3 mb-4">
@@ -277,26 +326,29 @@ export default function WorkspaceJoinPage() {
                                 {/* Workspace Info */}
                                 <div className="space-y-2 mb-4">
                                     <div className="flex items-center gap-2 text-sm text-gray-600">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                        </svg>
-                                        <span>초대자: <span className="font-medium text-gray-900">{workspace.invitedBy}</span></span>
+                                        <span className={`px-2 py-1 rounded-md text-xs font-medium ${workspace.role === 'ADMIN' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'}`}>
+                                            {workspace.role === 'ADMIN' ? '관리자' : '멤버'}
+                                        </span>
+                                        <span className="text-gray-400">|</span>
+                                        <span className="text-gray-500">
+                                            {new Date(workspace.createdAt).toLocaleDateString()} 가입
+                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                        </svg>
-                                        <span>멤버: <span className="font-medium text-gray-900">{workspace.memberCount}명</span></span>
-                                    </div>
+                                    <p className="text-sm text-gray-500 line-clamp-2 h-10">
+                                        {workspace.description || " "}
+                                    </p>
                                 </div>
 
-                                {/* Join Button */}
+                                {/* Enter Button */}
                                 <Button
                                     fullWidth
-                                    onClick={() => handleJoinWorkspace(workspace)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEnterWorkspace(workspace.id);
+                                    }}
                                     className="mt-4"
                                 >
-                                    참여하기
+                                    입장하기
                                 </Button>
                             </div>
                         ))}
@@ -310,6 +362,7 @@ export default function WorkspaceJoinPage() {
                 onClose={() => {
                     setIsCreateModalOpen(false);
                     setWorkspaceName('');
+                    setWorkspaceDescription('');
                 }}
                 title="새 모임 만들기"
             >
@@ -328,6 +381,16 @@ export default function WorkspaceJoinPage() {
                         </p>
                     </div>
 
+                    <div>
+                        <Input
+                            label="모임 설명 (선택)"
+                            type="text"
+                            placeholder="모임에 대한 간단한 설명을 입력해주세요"
+                            value={workspaceDescription}
+                            onChange={(e) => setWorkspaceDescription(e.target.value)}
+                        />
+                    </div>
+
                     <div className="flex gap-3">
                         <Button
                             type="button"
@@ -336,6 +399,7 @@ export default function WorkspaceJoinPage() {
                             onClick={() => {
                                 setIsCreateModalOpen(false);
                                 setWorkspaceName('');
+                                setWorkspaceDescription('');
                             }}
                         >
                             취소
@@ -345,6 +409,95 @@ export default function WorkspaceJoinPage() {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Join Workspace Modal */}
+            <Modal
+                isOpen={isJoinModalOpen}
+                onClose={() => {
+                    setIsJoinModalOpen(false);
+                    setSearchQuery('');
+                    setSearchResult([]);
+                    setSelectedWorkspace(null);
+                    setJoinCode('');
+                }}
+                title="모임 참여하기"
+            >
+                <div className="space-y-6">
+                    {/* Search Section */}
+                    <form onSubmit={handleSearchWorkspace} className="flex gap-2">
+                        <div className="flex-1">
+                            <Input
+                                label=""
+                                type="text"
+                                placeholder="모임 이름 검색"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <Button type="submit" disabled={isSearching}>
+                            {isSearching ? '검색 중...' : '검색'}
+                        </Button>
+                    </form>
+
+                    {/* Search Results */}
+                    {searchResult.length > 0 && !selectedWorkspace && (
+                        <div className="space-y-3">
+                            <p className="text-sm text-gray-500 font-medium">검색 결과</p>
+                            {searchResult.map((workspace) => (
+                                <div
+                                    key={workspace.id}
+                                    className={`border border-gray-200 rounded-xl p-4 transition-all ${workspace.isJoined
+                                        ? 'bg-gray-50 opacity-60 cursor-default'
+                                        : 'hover:border-emerald-500 hover:bg-emerald-50 cursor-pointer'
+                                        }`}
+                                    onClick={() => !workspace.isJoined && setSelectedWorkspace(workspace)}
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-bold text-gray-900">{workspace.name}</h4>
+                                        {workspace.isJoined && (
+                                            <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                                                참여 중
+                                            </span>
+                                        )}
+                                    </div>
+                                    {workspace.description && (
+                                        <p className="text-sm text-gray-600 mt-1">{workspace.description}</p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Join Code Section */}
+                    {selectedWorkspace && (
+                        <div className="bg-gray-50 rounded-xl p-6 animate-fade-in">
+                            <div className="flex items-center justify-between mb-4">
+                                <h4 className="font-bold text-gray-900">{selectedWorkspace.name}</h4>
+                                <button
+                                    onClick={() => setSelectedWorkspace(null)}
+                                    className="text-sm text-gray-500 hover:text-gray-700"
+                                >
+                                    다른 모임 선택
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleJoinWithCode} className="space-y-4">
+                                <Input
+                                    label="참여 코드"
+                                    type="text"
+                                    placeholder="참여 코드를 입력하세요"
+                                    value={joinCode}
+                                    onChange={(e) => setJoinCode(e.target.value)}
+                                />
+                                <Button type="submit" fullWidth variant="primary">
+                                    가입하기
+                                </Button>
+                            </form>
+                        </div>
+                    )}
+                </div>
             </Modal>
 
             <style jsx>{`
