@@ -468,7 +468,7 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
                         </label>
                         <input
                             type="text"
-                            placeholder="예: 사피엔스 1부 토론"
+                            placeholder="사피엔스 1부 토론"
                             value={newMeetingTitle}
                             onChange={(e) => setNewMeetingTitle(e.target.value)}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"

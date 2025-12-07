@@ -6,60 +6,91 @@ import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import apiClient from '@/lib/api';
 
 export default function SignupPage() {
-    const [username, setUsername] = useState('');
+    const [userid, setUserid] = useState('');
     const [password, setPassword] = useState('');
     const [passwordConfirm, setPasswordConfirm] = useState('');
-    const [usernameVerified, setUsernameVerified] = useState<boolean | null>(null);
+    const [useridVerified, setUseridVerified] = useState<boolean | null>(null);
     const [passwordMatched, setPasswordMatched] = useState<boolean | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const { showToast } = useToast();
     const router = useRouter();
 
-    // Mock database of existing usernames
-    const existingUsernames = ['testuser', 'admin', 'bookcrew'];
+    const [isCheckingUserid, setIsCheckingUserid] = useState(false);
 
-    const handleUsernameVerification = () => {
-        if (!username) {
+    const handleUseridVerification = async () => {
+        if (!userid) {
             showToast('아이디를 입력해주세요.', 'error');
             return;
         }
 
-        // Username format validation (lowercase English letters only)
-        const usernameRegex = /^[a-z]+$/;
-        if (!usernameRegex.test(username)) {
-            showToast('아이디는 영문 소문자만 입력 가능합니다.', 'error');
-            setUsernameVerified(false);
+        // Userid format validation (lowercase English letters and numbers)
+        const useridRegex = /^[a-z0-9]+$/;
+        if (!useridRegex.test(userid)) {
+            showToast('아이디는 영문 소문자와 숫자만 입력 가능합니다.', 'error');
             return;
         }
 
-        // Username length validation
-        if (username.length < 3) {
+        // Userid length validation
+        if (userid.length < 3) {
             showToast('아이디는 최소 3자 이상이어야 합니다.', 'error');
-            setUsernameVerified(false);
             return;
         }
 
-        // Check if username already exists (mock API call)
-        if (existingUsernames.includes(username.toLowerCase())) {
-            setUsernameVerified(false);
-            showToast('이미 사용 중인 아이디입니다.', 'error');
-        } else {
-            setUsernameVerified(true);
-            showToast('사용 가능한 아이디입니다.', 'success');
+        // Check if userid already exists via API
+        setIsCheckingUserid(true);
+        try {
+            const response = await apiClient.post('/users/check-userid', {
+                id: userid
+            });
+
+            // response.data.data.available로 중복 여부 확인
+            const { available } = response.data.data;
+            const message = response.data.message;
+
+            if (available) {
+                // 사용 가능한 아이디
+                setUseridVerified(true);
+                showToast(message || '사용 가능한 아이디입니다.', 'success');
+            } else {
+                // 이미 사용 중인 아이디
+                setUseridVerified(false);
+                showToast(message || '이미 사용 중인 아이디입니다.', 'error');
+            }
+        } catch (error: any) {
+            console.error('Userid check error:', error);
+
+            if (error.response) {
+                // 서버가 에러 응답을 반환
+                setUseridVerified(null);
+                const errorMessage = error.response.data.message || '아이디 확인 중 오류가 발생했습니다.';
+                showToast(errorMessage, 'error');
+            } else if (error.request) {
+                // 요청은 보냈지만 응답이 없음
+                setUseridVerified(null);
+                showToast('서버와의 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+            } else {
+                // 기타 에러
+                setUseridVerified(null);
+                showToast('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+            }
+        } finally {
+            setIsCheckingUserid(false);
         }
     };
 
-    const handleSignup = (e: React.FormEvent) => {
+    const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
 
         // Validation checks
-        if (!username || !password || !passwordConfirm) {
+        if (!userid || !password || !passwordConfirm) {
             showToast('모든 필드를 입력해주세요.', 'error');
             return;
         }
 
-        if (usernameVerified !== true) {
+        if (useridVerified !== true) {
             showToast('아이디 중복 확인을 완료해주세요.', 'error');
             return;
         }
@@ -74,20 +105,48 @@ export default function SignupPage() {
             return;
         }
 
-        // Mock signup success
-        showToast('회원가입이 완료되었습니다!', 'success');
+        setIsLoading(true);
 
-        // Redirect to login page after 1.5 seconds
-        setTimeout(() => {
-            router.push('/login');
-        }, 1500);
+        try {
+            const response = await apiClient.post('/users/signup', {
+                userId: userid,
+                password
+            });
+
+            const data = response.data;
+
+            showToast(data.message || '회원가입이 완료되었습니다.', 'success');
+
+            // Redirect to login page after 1.5 seconds
+            setTimeout(() => {
+                router.push('/login');
+            }, 1500);
+        } catch (error: any) {
+            console.error('Signup error:', error);
+
+            if (error.response) {
+                // Server responded with error status
+                const errorMessage = Array.isArray(error.response.data.message)
+                    ? error.response.data.message.join(', ')
+                    : error.response.data.message;
+                showToast(errorMessage || '회원가입에 실패했습니다.', 'error');
+            } else if (error.request) {
+                // Request was made but no response received
+                showToast('서버와의 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+            } else {
+                // Something else happened
+                showToast('오류가 발생했습니다. 잠시 후 다시 시도해주세요.', 'error');
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    // Reset username verification when username changes
-    const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Reset userid verification when userid changes
+    const handleUseridChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.toLowerCase();
-        setUsername(value);
-        setUsernameVerified(null);
+        setUserid(value);
+        setUseridVerified(null);
     };
 
     // Check password match in real-time
@@ -154,16 +213,16 @@ export default function SignupPage() {
 
                     {/* Signup Form */}
                     <form onSubmit={handleSignup} className="space-y-5">
-                        {/* Username Input with Verification */}
+                        {/* Userid Input with Verification */}
                         <div>
                             <div className="flex gap-2">
                                 <div className="flex-1">
                                     <Input
                                         label="아이디"
                                         type="text"
-                                        placeholder="영문 소문자만 입력"
-                                        value={username}
-                                        onChange={handleUsernameChange}
+                                        placeholder="영문 소문자, 숫자 입력"
+                                        value={userid}
+                                        onChange={handleUseridChange}
                                         autoComplete="username"
                                     />
                                 </div>
@@ -171,15 +230,16 @@ export default function SignupPage() {
                                     <Button
                                         type="button"
                                         variant="secondary"
-                                        onClick={handleUsernameVerification}
+                                        onClick={handleUseridVerification}
                                         className="h-[50px] whitespace-nowrap"
+                                        disabled={isCheckingUserid}
                                     >
-                                        중복확인
+                                        {isCheckingUserid ? '확인 중...' : '중복확인'}
                                     </Button>
                                 </div>
                             </div>
-                            {/* Username verification feedback */}
-                            {usernameVerified === true && (
+                            {/* Userid verification feedback */}
+                            {useridVerified === true && (
                                 <p className="mt-2 text-sm text-emerald-600 font-medium flex items-center gap-1">
                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -187,7 +247,7 @@ export default function SignupPage() {
                                     사용 가능한 아이디입니다.
                                 </p>
                             )}
-                            {usernameVerified === false && (
+                            {useridVerified === false && (
                                 <p className="mt-2 text-sm text-red-500 font-medium flex items-center gap-1">
                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -229,8 +289,8 @@ export default function SignupPage() {
                         </div>
 
                         <div className="space-y-4 pt-2">
-                            <Button type="submit" fullWidth>
-                                회원가입
+                            <Button type="submit" fullWidth disabled={isLoading}>
+                                {isLoading ? '처리 중...' : '회원가입'}
                             </Button>
 
                             <div className="relative">

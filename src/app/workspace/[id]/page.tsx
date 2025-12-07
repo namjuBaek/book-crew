@@ -273,15 +273,6 @@ export default function WorkspaceHomePage({ params }: { params: Promise<{ id: st
                                                 </div>
                                             </div>
                                         </div>
-
-                                        <div className="flex gap-2">
-                                            <Button variant="secondary" className="bg-white text-emerald-600 hover:bg-emerald-50 text-xs px-3 py-2">
-                                                일정 수정
-                                            </Button>
-                                            <Button variant="secondary" className="bg-white/20 text-white border-white hover:bg-white/30 text-xs px-3 py-2">
-                                                캘린더
-                                            </Button>
-                                        </div>
                                     </div>
                                 </section>
                             )}
@@ -291,16 +282,8 @@ export default function WorkspaceHomePage({ params }: { params: Promise<{ id: st
                                 {/* Bookshelf Design */}
                                 <div className="bg-gradient-to-b from-amber-100 to-amber-50 rounded-2xl p-6 shadow-card border-2 border-amber-200 flex flex-col h-full">
                                     {/* Header inside card */}
-                                    <div className="flex items-center justify-between mb-4">
+                                    <div className="mb-4">
                                         <h2 className="text-xl font-bold text-gray-900">우리의 책장</h2>
-                                        <Link href={`/workspace/${workspaceId}/books`}>
-                                            <Button variant="text" className="flex items-center gap-1 text-sm">
-                                                전체 보기
-                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </Button>
-                                        </Link>
                                     </div>
 
                                     {/* Books on Shelf */}
@@ -389,7 +372,7 @@ export default function WorkspaceHomePage({ params }: { params: Promise<{ id: st
                         <section>
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-2xl font-bold text-gray-900">최근 독서 기록</h2>
-                                <Link href={`/workspace/${workspaceId}/records`}>
+                                <Link href={`/workspace/${workspaceId}/meetings`}>
                                     <Button variant="text" className="flex items-center gap-1">
                                         전체 보기
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -414,7 +397,6 @@ export default function WorkspaceHomePage({ params }: { params: Promise<{ id: st
                                                 </div>
                                                 <h3 className="text-lg font-semibold text-gray-900">{record.book}</h3>
                                             </div>
-                                            <span className="text-sm text-gray-500">{formatDate(record.date)}</span>
                                         </div>
                                         <p className="text-gray-600 mb-4">{record.summary}</p>
                                         <div className="flex items-center gap-4 text-sm text-gray-500">

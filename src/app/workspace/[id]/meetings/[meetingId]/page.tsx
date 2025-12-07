@@ -105,7 +105,7 @@ export default function MeetingDetailPage({
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <WorkspaceHeader workspaceId={params.id} />
+            <WorkspaceHeader workspaceName="독서모임 북클럽" />
             <WorkspaceSidebar workspaceId={params.id} />
 
             <main className="ml-64 pt-[73px] p-8">
@@ -123,14 +123,10 @@ export default function MeetingDetailPage({
 
                     {/* Document Container */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12">
-                        {/* Title Input */}
-                        <input
-                            type="text"
-                            placeholder="제목을 입력하세요"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="w-full text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none mb-6"
-                        />
+                        {/* Title Display (Read-only) */}
+                        <h1 className="w-full text-4xl font-bold text-gray-900 mb-6">
+                            {title || '제목 없음'}
+                        </h1>
 
                         {/* Properties Section - Notion Style */}
                         <div className="space-y-3 mb-12">
