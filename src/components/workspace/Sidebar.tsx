@@ -135,22 +135,7 @@ export const WorkspaceSidebar: React.FC<SidebarProps> = ({ workspaceId }) => {
                 })}
             </nav>
 
-            {/* Workspace Switcher */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
-                <Link
-                    href="/workspace-join"
-                    className={`
-                        flex items-center rounded-lg text-gray-700 hover:bg-gray-50 transition-colors
-                        ${isCollapsed ? 'justify-center px-4 py-3' : 'gap-3 px-4 py-3'}
-                    `}
-                    title={isCollapsed ? '모임 전환' : undefined}
-                >
-                    <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                    {!isCollapsed && <span className="text-sm font-medium">모임 전환</span>}
-                </Link>
-            </div>
+
         </aside>
     );
 };

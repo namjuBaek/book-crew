@@ -212,26 +212,7 @@ export default function WorkspaceJoinPage() {
                             </h1>
                         </div>
                         <div className="flex items-center gap-3">
-                            <Button
-                                variant="secondary"
-                                onClick={() => setIsJoinModalOpen(true)}
-                                className="flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                                </svg>
-                                모임 참여
-                            </Button>
-                            <Button
-                                variant="primary"
-                                onClick={() => setIsCreateModalOpen(true)}
-                                className="flex items-center gap-2"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                모임 생성
-                            </Button>
+                            {/* Profile Dropdown */}
 
                             {/* Profile Dropdown */}
                             <div className="relative">
@@ -277,9 +258,35 @@ export default function WorkspaceJoinPage() {
 
             {/* Main Content */}
             <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-6 py-12">
-                <div className="mb-8 animate-fade-in">
-                    <h2 className="text-3xl font-bold text-gray-900 mb-2">참여 중인 모임</h2>
-                    <p className="text-gray-600">참여 중인 독서 모임 목록입니다. 새로운 모임을 만들어보세요.</p>
+                <div className="mb-8 animate-fade-in flex items-end justify-between">
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">참여 중인 모임</h2>
+                        <p className="text-gray-600">참여 중인 독서 모임 목록입니다. 새로운 모임을 만들어보세요.</p>
+                    </div>
+                    {workspaces.length > 0 && (
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setIsJoinModalOpen(true)}
+                                className="flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                </svg>
+                                모임 참여
+                            </Button>
+                            <Button
+                                variant="primary"
+                                onClick={() => setIsCreateModalOpen(true)}
+                                className="flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                모임 생성
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Workspaces List */}
@@ -298,9 +305,17 @@ export default function WorkspaceJoinPage() {
                         </div>
                         <h3 className="text-xl font-semibold text-gray-900 mb-2">참여 중인 모임이 없습니다</h3>
                         <p className="text-gray-600 mb-6">새로운 모임을 만들어 독서 여정을 시작해보세요!</p>
-                        <Button onClick={() => setIsCreateModalOpen(true)}>
-                            모임 만들기
-                        </Button>
+                        <div className="flex justify-center gap-3">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setIsJoinModalOpen(true)}
+                            >
+                                모임 참여
+                            </Button>
+                            <Button onClick={() => setIsCreateModalOpen(true)}>
+                                모임 생성
+                            </Button>
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">

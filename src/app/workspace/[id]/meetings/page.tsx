@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { WorkspaceHeader } from '@/components/workspace/Header';
-import { WorkspaceSidebar } from '@/components/workspace/Sidebar';
+
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
@@ -17,7 +16,8 @@ interface Meeting {
     book: string;
 }
 
-export default function MeetingsPage({ params }: { params: { id: string } }) {
+export default function MeetingsPage({ params }: { params: Promise<{ id: string }> }) {
+    const [workspaceId, setWorkspaceId] = useState<string>('');
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [filteredMeetings, setFilteredMeetings] = useState<Meeting[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -47,8 +47,11 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     const bookDropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        loadMeetings();
-    }, []);
+        params.then((resolvedParams) => {
+            setWorkspaceId(resolvedParams.id);
+            loadMeetings();
+        });
+    }, [params]);
 
     useEffect(() => {
         // Extract unique book titles from meetings
@@ -174,7 +177,7 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
         showToast('새 문서가 생성되었습니다.', 'success');
 
         // Navigate to the new meeting detail page
-        router.push(`/workspace/${params.id}/meetings/${newMeeting.id}`);
+        router.push(`/workspace/${workspaceId}/meetings/${newMeeting.id}`);
     };
 
     const toggleParticipant = (participant: string) => {
@@ -203,7 +206,7 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     };
 
     const handleRowClick = (meetingId: string) => {
-        router.push(`/workspace/${params.id}/meetings/${meetingId}`);
+        router.push(`/workspace/${workspaceId}/meetings/${meetingId}`);
     };
 
     // 페이지네이션
@@ -216,235 +219,239 @@ export default function MeetingsPage({ params }: { params: { id: string } }) {
     // 회차 목록 (중복 제거)
     const sessionNumbers = Array.from(new Set(meetings.map(m => m.sessionNumber))).sort((a, b) => a - b);
 
+    if (!workspaceId) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent" />
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gray-50">
-            <WorkspaceHeader workspaceId={params.id} />
-            <WorkspaceSidebar workspaceId={params.id} />
+        <div className="p-8">
+            <div className="max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="mb-8 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">독서 모임</h1>
+                        <p className="text-gray-600">회차별 진행 문서를 확인하고 관리하세요.</p>
+                    </div>
+                    <Button onClick={() => setIsCreateModalOpen(true)} className="flex-shrink-0 whitespace-nowrap">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        새 문서 생성
+                    </Button>
+                </div>
 
-            <main className="ml-64 pt-[73px] p-8">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-8 flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                            <h1 className="text-3xl font-bold text-gray-900 mb-2">독서 모임</h1>
-                            <p className="text-gray-600">회차별 진행 문서를 확인하고 관리하세요.</p>
+                {/* Filters */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+                    <div className="flex flex-wrap items-end gap-3">
+                        {/* 회차 선택 */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                회차
+                            </label>
+                            <select
+                                value={selectedSession}
+                                onChange={(e) => setSelectedSession(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                            >
+                                <option value="all">전체</option>
+                                {sessionNumbers.map(num => (
+                                    <option key={num} value={num.toString()}>
+                                        {num}회차
+                                    </option>
+                                ))}
+                            </select>
                         </div>
-                        <Button onClick={() => setIsCreateModalOpen(true)} className="flex-shrink-0 whitespace-nowrap">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            새 문서 생성
-                        </Button>
-                    </div>
 
-                    {/* Filters */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-                        <div className="flex flex-wrap items-end gap-3">
-                            {/* 회차 선택 */}
-                            <div className="flex-1 min-w-[150px]">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    회차
-                                </label>
-                                <select
-                                    value={selectedSession}
-                                    onChange={(e) => setSelectedSession(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                                >
-                                    <option value="all">전체</option>
-                                    {sessionNumbers.map(num => (
-                                        <option key={num} value={num.toString()}>
-                                            {num}회차
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* 제목 검색 */}
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    문서 제목
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="제목 검색"
-                                    value={searchTitle}
-                                    onChange={(e) => setSearchTitle(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                />
-                            </div>
-
-                            {/* 시작 날짜 */}
-                            <div className="flex-1 min-w-[150px]">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    시작 날짜
-                                </label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                                />
-                            </div>
-
-                            {/* 종료 날짜 */}
-                            <div className="flex-1 min-w-[150px]">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">
-                                    종료 날짜
-                                </label>
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                                />
-                            </div>
-
-                            {/* 필터 초기화 버튼 */}
-                            <div>
-                                <button
-                                    onClick={resetFilters}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                                >
-                                    초기화
-                                </button>
-                            </div>
+                        {/* 제목 검색 */}
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                문서 제목
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="제목 검색"
+                                value={searchTitle}
+                                onChange={(e) => setSearchTitle(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
                         </div>
-                    </div>
 
-                    {/* Results Summary */}
-                    <div className="mb-4 text-sm text-gray-600">
-                        총 <span className="font-semibold text-gray-900">{filteredMeetings.length}</span>개의 문서
-                    </div>
+                        {/* 시작 날짜 */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                시작 날짜
+                            </label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                            />
+                        </div>
 
-                    {/* Meetings Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        {isLoading ? (
-                            <div className="p-12 text-center text-gray-500">
-                                로딩 중...
-                            </div>
-                        ) : paginatedMeetings.length === 0 ? (
-                            <div className="p-12 text-center text-gray-500">
-                                검색 결과가 없습니다.
-                            </div>
-                        ) : (
-                            <>
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">회차</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">문서 제목</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">진행 일자</th>
-                                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">참가자</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {paginatedMeetings.map((meeting) => (
-                                            <tr
-                                                key={meeting.id}
-                                                onClick={() => handleRowClick(meeting.id)}
-                                                className="hover:bg-gray-50 transition-colors cursor-pointer"
-                                            >
-                                                <td className="px-6 py-4">
-                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700">
-                                                        {meeting.sessionNumber}회차
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="font-medium text-gray-900">{meeting.title}</div>
-                                                    <div className="text-sm text-gray-500">{meeting.book}</div>
-                                                </td>
-                                                <td className="px-6 py-4 text-gray-600">
-                                                    {new Date(meeting.date).toLocaleDateString('ko-KR', {
-                                                        year: 'numeric',
-                                                        month: 'long',
-                                                        day: 'numeric'
-                                                    })}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex -space-x-2">
-                                                            {meeting.participants.slice(0, 3).map((participant, idx) => (
-                                                                <div
-                                                                    key={idx}
-                                                                    className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center"
-                                                                    title={participant}
-                                                                >
-                                                                    <span className="text-xs font-medium text-gray-600">
-                                                                        {participant.charAt(0)}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        {meeting.participants.length > 3 && (
-                                                            <span className="text-sm text-gray-500">
-                                                                +{meeting.participants.length - 3}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        {/* 종료 날짜 */}
+                        <div className="flex-1 min-w-[150px]">
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                종료 날짜
+                            </label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                            />
+                        </div>
 
-                                {/* Pagination */}
-                                {totalPages > 1 && (
-                                    <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-center gap-2">
-                                        <button
-                                            onClick={() => setCurrentPage(1)}
-                                            disabled={currentPage === 1}
-                                            className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                            disabled={currentPage === 1}
-                                            className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                            </svg>
-                                        </button>
-                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                            <button
-                                                key={page}
-                                                onClick={() => setCurrentPage(page)}
-                                                className={`px-3 py-1 rounded cursor-pointer ${currentPage === page
-                                                    ? 'bg-emerald-600 text-white'
-                                                    : 'text-gray-600 hover:bg-gray-100'
-                                                    }`}
-                                            >
-                                                {page}
-                                            </button>
-                                        ))}
-                                        <button
-                                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                                            disabled={currentPage === totalPages}
-                                            className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            disabled={currentPage === totalPages}
-                                            className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                        {/* 필터 초기화 버튼 */}
+                        <div>
+                            <button
+                                onClick={resetFilters}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                                초기화
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </main>
+
+                {/* Results Summary */}
+                <div className="mb-4 text-sm text-gray-600">
+                    총 <span className="font-semibold text-gray-900">{filteredMeetings.length}</span>개의 문서
+                </div>
+
+                {/* Meetings Table */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {isLoading ? (
+                        <div className="p-12 text-center text-gray-500">
+                            로딩 중...
+                        </div>
+                    ) : paginatedMeetings.length === 0 ? (
+                        <div className="p-12 text-center text-gray-500">
+                            검색 결과가 없습니다.
+                        </div>
+                    ) : (
+                        <>
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">회차</th>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">문서 제목</th>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">진행 일자</th>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">참가자</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {paginatedMeetings.map((meeting) => (
+                                        <tr
+                                            key={meeting.id}
+                                            onClick={() => handleRowClick(meeting.id)}
+                                            className="hover:bg-gray-50 transition-colors cursor-pointer"
+                                        >
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700">
+                                                    {meeting.sessionNumber}회차
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-900">{meeting.title}</div>
+                                                <div className="text-sm text-gray-500">{meeting.book}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">
+                                                {new Date(meeting.date).toLocaleDateString('ko-KR', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex -space-x-2">
+                                                        {meeting.participants.slice(0, 3).map((participant, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center"
+                                                                title={participant}
+                                                            >
+                                                                <span className="text-xs font-medium text-gray-600">
+                                                                    {participant.charAt(0)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {meeting.participants.length > 3 && (
+                                                        <span className="text-sm text-gray-500">
+                                                            +{meeting.participants.length - 3}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-center gap-2">
+                                    <button
+                                        onClick={() => setCurrentPage(1)}
+                                        disabled={currentPage === 1}
+                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                        disabled={currentPage === 1}
+                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                    </button>
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`px-3 py-1 rounded cursor-pointer ${currentPage === page
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'text-gray-600 hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => setCurrentPage(totalPages)}
+                                        disabled={currentPage === totalPages}
+                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
 
             {/* Create Meeting Modal */}
             <Modal
