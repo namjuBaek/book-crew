@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useWorkspaceMember } from '@/contexts/WorkspaceMemberContext';
 
 interface NavItem {
     name: string;
@@ -17,6 +18,7 @@ interface SidebarProps {
 export const WorkspaceSidebar: React.FC<SidebarProps> = ({ workspaceId }) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const pathname = usePathname();
+    const { member } = useWorkspaceMember();
 
     const navItems: NavItem[] = [
         {
@@ -110,7 +112,13 @@ export const WorkspaceSidebar: React.FC<SidebarProps> = ({ workspaceId }) => {
             </div>
 
             <nav className="p-4 space-y-1">
-                {navItems.map((item) => {
+                {navItems.filter(item => {
+                    // '멤버' 메뉴는 관리자(ADMIN)에게만 표시
+                    if (item.name === '멤버') {
+                        return member?.role === 'ADMIN';
+                    }
+                    return true;
+                }).map((item) => {
                     const active = isActive(item.href);
                     return (
                         <Link

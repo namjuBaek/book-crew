@@ -43,6 +43,10 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [deleteConfirmation, setDeleteConfirmation] = useState('');
 
+    // Workspace leave
+    const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+
+
     const { showToast } = useToast();
     const router = useRouter();
 
@@ -166,6 +170,39 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
         }
     };
 
+    const handleLeaveWorkspace = async () => {
+        try {
+            await apiClient.delete(`/workspaces/${workspaceId}/me`);
+            showToast("워크스페이스에서 나갔습니다.", "success");
+            router.push('/workspace-join');
+        } catch (error: any) {
+            // 소유자(ADMIN)가 혼자 남은 경우 등 API 에러 처리
+            if (error.response?.status === 400 && error.response?.data?.message) {
+                showToast(error.response.data.message, "error");
+            } else {
+                showToast("워크스페이스 나가기에 실패했습니다.", "error");
+            }
+            console.error('Error leaving workspace:', error);
+        }
+    };
+
+    const handleCheckCanLeave = async () => {
+        try {
+            const response = await apiClient.get<{ success: boolean; data: { canLeave: boolean } }>(
+                `/workspaces/${workspaceId}/me/can-leave`
+            );
+
+            if (response.data?.data?.canLeave) {
+                setIsLeaveModalOpen(true);
+            } else {
+                showToast("워크스페이스 내 유일한 관리자입니다. 다른 멤버에게 관리자 권한을 위임한 후 다시 시도해주세요.", "error");
+            }
+        } catch (error) {
+            console.error('Failed to check can leave:', error);
+            showToast("오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error");
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-20">
@@ -255,12 +292,11 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                                 역할
                             </label>
                             <div className="px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${member?.role === 'OWNER' || member?.role === 'ADMIN'
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${member?.role === 'ADMIN'
                                     ? 'bg-emerald-100 text-emerald-700'
                                     : 'bg-gray-100 text-gray-700'
                                     }`}>
-                                    {member?.role === 'OWNER' ? '소유자' :
-                                        member?.role === 'ADMIN' ? '관리자' : '멤버'}
+                                    {member?.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'}
                                 </span>
                             </div>
                         </div>
@@ -268,7 +304,7 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                 </section>
 
                 {/* Workspace Settings (Admin Only) */}
-                {(member?.role === 'OWNER' || member?.role === 'ADMIN') && (
+                {member?.role === 'ADMIN' && (
                     <section className="bg-white rounded-xl shadow-card border border-gray-200 p-6">
                         <div className="flex items-center justify-between mb-6">
                             <div>
@@ -330,20 +366,36 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                             </div>
 
                             {/* Save/Cancel Buttons */}
-
                         </div>
                     </section>
                 )}
 
-                {/* Danger Zone (Admin Only) */}
-                {(member?.role === 'OWNER' || member?.role === 'ADMIN') && (
-                    <section className="bg-white rounded-xl shadow-card border border-red-200 p-6">
-                        <div className="mb-4">
-                            <h2 className="text-xl font-bold text-red-600">위험 구역</h2>
-                            <p className="text-sm text-gray-600 mt-1">신중하게 사용하세요.</p>
+                {/* Danger Zone */}
+                <section className="bg-white rounded-xl shadow-card border border-red-200 p-6">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-bold text-red-600">위험 구역</h2>
+                        <p className="text-sm text-gray-600 mt-1">신중하게 사용하세요.</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Workspace Leave */}
+                        <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">워크스페이스 나가기</h3>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    이 워크스페이스에서 나갑니다.
+                                </p>
+                            </div>
+                            <Button
+                                className="!bg-red-50 !text-red-600 !border !border-red-200 hover:!bg-red-100"
+                                onClick={handleCheckCanLeave}
+                            >
+                                나가기
+                            </Button>
                         </div>
 
-                        <div className="space-y-4">
+                        {/* Workspace Delete (Admin Only) */}
+                        {member?.role === 'ADMIN' && (
                             <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                                 <div>
                                     <h3 className="font-semibold text-gray-900">워크스페이스 삭제</h3>
@@ -360,9 +412,9 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                                 >                                  삭제
                                 </Button>
                             </div>
-                        </div>
-                    </section>
-                )}
+                        )}
+                    </div>
+                </section>
             </div>
 
             {/* Delete Confirmation Modal */}
@@ -412,6 +464,41 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
                     </div>
                 </div>
             </Modal>
+
+            {/* Leave Confirmation Modal */}
+            <Modal
+                isOpen={isLeaveModalOpen}
+                onClose={() => setIsLeaveModalOpen(false)}
+                title="워크스페이스 나가기"
+            >
+                <div className="space-y-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <p className="text-sm text-red-800 font-medium">
+                            정말 워크스페이스에서 나가시겠습니까?
+                        </p>
+                        <p className="text-sm text-red-700 mt-1">
+                            나가면 워크스페이스의 내용에 접근할 수 없게 됩니다.
+                        </p>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                        <Button
+                            variant="secondary"
+                            onClick={() => setIsLeaveModalOpen(false)}
+                            className="flex-1"
+                        >
+                            취소
+                        </Button>
+                        <Button
+                            className="flex-1 bg-red-600 text-white hover:bg-red-700 border-red-600"
+                            onClick={handleLeaveWorkspace}
+                        >
+                            나가기
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
         </div>
     );
 }
