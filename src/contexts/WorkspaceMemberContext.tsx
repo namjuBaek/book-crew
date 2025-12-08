@@ -35,7 +35,9 @@ export function WorkspaceMemberProvider({
 
         setIsLoading(true);
         try {
-            const response = await apiClient.get(`/workspaces/${workspaceId}/me`);
+            const response = await apiClient.post('/members/me', {
+                workspaceId
+            });
             if (response.data.success) {
                 setMember(response.data.data);
                 setError(null);

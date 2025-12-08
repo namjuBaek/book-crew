@@ -91,7 +91,8 @@ export default function SettingsPage({ params }: { params: Promise<{ id: string 
 
         setIsSaving(true);
         try {
-            const response = await apiClient.patch(`/workspaces/${workspaceId}/me`, {
+            const response = await apiClient.patch('/members/me', {
+                workspaceId,
                 name: editedName
             });
 
