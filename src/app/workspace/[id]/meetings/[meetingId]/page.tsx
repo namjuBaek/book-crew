@@ -66,6 +66,7 @@ export default function MeetingDetailPage({
     const [selectedBook, setSelectedBook] = useState<Book | null>(null);
     const [showBookSelector, setShowBookSelector] = useState(false);
     const [newBookTitle, setNewBookTitle] = useState('');
+    const [isCreatingBook, setIsCreatingBook] = useState(false);
     const bookDropdownRef = useRef<HTMLDivElement>(null);
     const [meetingDate, setMeetingDate] = useState('');
     const [participants, setParticipants] = useState<Member[]>([]);
@@ -221,8 +222,9 @@ export default function MeetingDetailPage({
     }, [showBookSelector]);
 
     const handleCreateBook = async () => {
-        if (!newBookTitle.trim() || !workspaceId) return;
+        if (!newBookTitle.trim() || !workspaceId || isCreatingBook) return;
 
+        setIsCreatingBook(true);
         try {
             const response = await apiClient.post('/books/create', {
                 workspaceId,
@@ -241,6 +243,8 @@ export default function MeetingDetailPage({
         } catch (error) {
             console.error('Failed to create book:', error);
             showToast('책 등록 중 오류가 발생했습니다.', 'error');
+        } finally {
+            setIsCreatingBook(false);
         }
     };
 
@@ -502,12 +506,13 @@ export default function MeetingDetailPage({
                                                                     placeholder="책 제목 입력"
                                                                     className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:border-emerald-500"
                                                                     onKeyDown={(e) => {
+                                                                        if (e.nativeEvent.isComposing) return;
                                                                         if (e.key === 'Enter') handleCreateBook();
                                                                     }}
                                                                 />
                                                                 <button
                                                                     onClick={handleCreateBook}
-                                                                    disabled={!newBookTitle.trim()}
+                                                                    disabled={!newBookTitle.trim() || isCreatingBook}
                                                                     className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                                                 >
                                                                     등록
