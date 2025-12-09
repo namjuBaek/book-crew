@@ -30,12 +30,12 @@ export function useAuth() {
                 } else {
                     console.warn('Auth check failed:', response.data);
                     // 인증 실패 시 로그인 페이지로 리다이렉트
-                    router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+                    router.replace('/login');
                 }
             } catch (error: any) {
                 console.error('Auth check error:', error.message);
                 // 인증 실패 시 로그인 페이지로 리다이렉트
-                router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+                router.replace('/login');
             } finally {
                 setIsLoading(false);
             }

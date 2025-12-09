@@ -9,10 +9,11 @@ import { useWorkspaceMember } from '@/contexts/WorkspaceMemberContext';
 
 interface HeaderProps {
     workspaceName: string;
+    workspaceId?: string;
     onSettingsClick?: () => void;
 }
 
-export const WorkspaceHeader: React.FC<HeaderProps> = ({ workspaceName, onSettingsClick }) => {
+export const WorkspaceHeader: React.FC<HeaderProps> = ({ workspaceName, workspaceId, onSettingsClick }) => {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const { member } = useWorkspaceMember();
     const router = useRouter();
@@ -32,12 +33,12 @@ export const WorkspaceHeader: React.FC<HeaderProps> = ({ workspaceName, onSettin
     };
 
     return (
-        <header className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-40 shadow-sm">
-            <div className="px-6 py-4">
-                <div className="flex items-center justify-between">
+        <header className="bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-40 shadow-sm h-[73px]">
+            <div className="px-6 h-full">
+                <div className="flex items-center justify-between h-full">
                     {/* Left: Logo and Workspace Name */}
                     <div className="flex items-center gap-4">
-                        <Link href="/workspace-join" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                        <Link href={workspaceId ? `/workspace/${workspaceId}` : '/workspace-join'} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                             {/* Logo */}
                             <div className="relative">
                                 <div className="absolute inset-0 bg-emerald-500 rounded-lg blur-md opacity-50" />

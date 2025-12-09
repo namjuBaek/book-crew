@@ -2,45 +2,62 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
+import apiClient from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
 
+interface Book {
+    id: string;
+    title: string;
+    createdAt: string;
+}
+
+interface Member {
+    id: string;
+    name: string;
+    email: string;
+}
+
 interface Meeting {
     id: string;
-    sessionNumber: number;
     title: string;
-    date: string;
-    participants: string[];
-    book: string;
+    meetingDate: string;
+    bookTitle: string | null;
+    attendeeCount: number;
+    createdAt: string;
 }
 
 export default function MeetingsPage({ params }: { params: Promise<{ id: string }> }) {
     const [workspaceId, setWorkspaceId] = useState<string>('');
     const [meetings, setMeetings] = useState<Meeting[]>([]);
-    const [filteredMeetings, setFilteredMeetings] = useState<Meeting[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+
+    // Search & Filter State
     const [searchTitle, setSearchTitle] = useState('');
-    const [selectedSession, setSelectedSession] = useState<string>('all');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newMeetingTitle, setNewMeetingTitle] = useState('');
     const [newMeetingDate, setNewMeetingDate] = useState('');
-    const [newMeetingBook, setNewMeetingBook] = useState('');
-    const [newMeetingParticipants, setNewMeetingParticipants] = useState<string[]>([]);
+    const [newMeetingBookId, setNewMeetingBookId] = useState('');
+    const [newMeetingBookTitle, setNewMeetingBookTitle] = useState(''); // Display only
+    const [newMeetingParticipants, setNewMeetingParticipants] = useState<Member[]>([]);
     const { showToast } = useToast();
     const router = useRouter();
 
-    const itemsPerPage = 10;
+    // Member Search State
+    const [memberSearchQuery, setMemberSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Member[]>([]);
+    const [isSearchingMembers, setIsSearchingMembers] = useState(false);
 
-    // Available participants (mock data)
-    const availableParticipants = ['홍길동', '김철수', '이영희', '박민수', '최지영'];
-
-    // Available books (extracted from existing meetings)
-    const [availableBooks, setAvailableBooks] = useState<string[]>([]);
+    // Books from API
+    const [availableBooks, setAvailableBooks] = useState<Book[]>([]);
     const [isAddingNewBook, setIsAddingNewBook] = useState(false);
     const [newBookInput, setNewBookInput] = useState('');
     const [showBookDropdown, setShowBookDropdown] = useState(false);
@@ -49,19 +66,15 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
     useEffect(() => {
         params.then((resolvedParams) => {
             setWorkspaceId(resolvedParams.id);
-            loadMeetings();
         });
     }, [params]);
 
     useEffect(() => {
-        // Extract unique book titles from meetings
-        const uniqueBooks = Array.from(new Set(meetings.map(m => m.book)));
-        setAvailableBooks(uniqueBooks);
-    }, [meetings]);
-
-    useEffect(() => {
-        applyFilters();
-    }, [meetings, searchTitle, selectedSession, startDate, endDate]);
+        if (workspaceId) {
+            loadMeetings(currentPage);
+            loadBooks();
+        }
+    }, [workspaceId, currentPage]);
 
     // Close book dropdown when clicking outside
     useEffect(() => {
@@ -82,62 +95,71 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
         };
     }, [showBookDropdown]);
 
-    const loadMeetings = () => {
-        // Mock data
-        const mockMeetings: Meeting[] = [
-            { id: '1', sessionNumber: 1, title: '사피엔스 1부 토론', date: '2024-01-15', participants: ['홍길동', '김철수', '이영희'], book: '사피엔스' },
-            { id: '2', sessionNumber: 2, title: '사피엔스 2부 토론', date: '2024-01-22', participants: ['홍길동', '김철수', '이영희', '박민수'], book: '사피엔스' },
-            { id: '3', sessionNumber: 3, title: '사피엔스 3부 토론', date: '2024-01-29', participants: ['홍길동', '김철수', '이영희'], book: '사피엔스' },
-            { id: '4', sessionNumber: 4, title: '사피엔스 4부 토론 및 마무리', date: '2024-02-05', participants: ['홍길동', '김철수', '이영희', '박민수', '최지영'], book: '사피엔스' },
-            { id: '5', sessionNumber: 5, title: '총, 균, 쇠 1부 토론', date: '2024-02-12', participants: ['홍길동', '김철수', '이영희'], book: '총, 균, 쇠' },
-            { id: '6', sessionNumber: 6, title: '총, 균, 쇠 2부 토론', date: '2024-02-19', participants: ['홍길동', '김철수', '이영희', '박민수'], book: '총, 균, 쇠' },
-            { id: '7', sessionNumber: 7, title: '총, 균, 쇠 3부 토론', date: '2024-02-26', participants: ['홍길동', '김철수', '이영희'], book: '총, 균, 쇠' },
-            { id: '8', sessionNumber: 8, title: '총, 균, 쇠 4부 토론 및 마무리', date: '2024-03-04', participants: ['홍길동', '김철수', '이영희', '박민수'], book: '총, 균, 쇠' },
-            { id: '9', sessionNumber: 9, title: '코스모스 1부 토론', date: '2024-03-11', participants: ['홍길동', '김철수', '이영희', '최지영'], book: '코스모스' },
-            { id: '10', sessionNumber: 10, title: '코스모스 2부 토론', date: '2024-03-18', participants: ['홍길동', '김철수', '이영희'], book: '코스모스' },
-            { id: '11', sessionNumber: 11, title: '코스모스 3부 토론', date: '2024-03-25', participants: ['홍길동', '김철수', '이영희', '박민수'], book: '코스모스' },
-            { id: '12', sessionNumber: 12, title: '코스모스 4부 토론 및 마무리', date: '2024-04-01', participants: ['홍길동', '김철수', '이영희', '박민수', '최지영'], book: '코스모스' },
-        ];
-        setMeetings(mockMeetings);
-        setIsLoading(false);
+    // Debounce filter changes
+    useEffect(() => {
+        if (!workspaceId) return;
+
+        const timer = setTimeout(() => {
+            if (currentPage === 1) {
+                loadMeetings(1);
+            } else {
+                setCurrentPage(1);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [searchTitle, startDate, endDate, workspaceId]);
+
+    const loadMeetings = async (page: number) => {
+        setIsLoading(true);
+        try {
+            // API call - note: using query param for page
+            const response = await apiClient.post(`/meetings?page=${page}`, {
+                workspaceId,
+                keyword: searchTitle || undefined,
+                startDate: startDate || undefined,
+                endDate: endDate || undefined
+            });
+            if (response.data.success) {
+                setMeetings(response.data.data);
+                const meta = response.data.meta;
+                setTotalPages(meta.totalPage);
+                setTotalCount(meta.totalCount);
+            } else {
+                setMeetings([]);
+                // Only show error if it's not a 404 (which might mean no results)
+                // But typically API returns empty list for no results.
+                // Keeping original error handling but suppressed for empty searches if needed
+                // showToast('미팅 목록을 불러오지 못했습니다.', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to load meetings:', error);
+            showToast('미팅 목록을 불러오는 중 오류가 발생했습니다.', 'error');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const applyFilters = () => {
-        let filtered = [...meetings];
-
-        // 회차 필터
-        if (selectedSession !== 'all') {
-            filtered = filtered.filter(m => m.sessionNumber.toString() === selectedSession);
+    const loadBooks = async () => {
+        try {
+            const response = await apiClient.post('/books', { workspaceId });
+            if (response.data.success) {
+                setAvailableBooks(response.data.data);
+            }
+        } catch (error) {
+            console.error('Failed to load books:', error);
+            showToast('책 목록을 불러오는 중 오류가 발생했습니다.', 'error');
         }
-
-        // 제목 검색 필터
-        if (searchTitle) {
-            filtered = filtered.filter(m =>
-                m.title.toLowerCase().includes(searchTitle.toLowerCase())
-            );
-        }
-
-        // 날짜 범위 필터
-        if (startDate) {
-            filtered = filtered.filter(m => m.date >= startDate);
-        }
-        if (endDate) {
-            filtered = filtered.filter(m => m.date <= endDate);
-        }
-
-        setFilteredMeetings(filtered);
-        setCurrentPage(1);
     };
 
     const resetFilters = () => {
         setSearchTitle('');
-        setSelectedSession('all');
         setStartDate('');
         setEndDate('');
         showToast('필터가 초기화되었습니다.', 'success');
     };
 
-    const handleCreateMeeting = () => {
+    const handleCreateMeeting = async () => {
         if (!newMeetingTitle.trim()) {
             showToast('문서 제목을 입력해주세요.', 'error');
             return;
@@ -146,8 +168,8 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
             showToast('진행 일자를 선택해주세요.', 'error');
             return;
         }
-        if (!newMeetingBook.trim()) {
-            showToast('책 제목을 입력해주세요.', 'error');
+        if (!newMeetingBookId) {
+            showToast('책을 선택해주세요.', 'error');
             return;
         }
         if (newMeetingParticipants.length === 0) {
@@ -155,69 +177,108 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
             return;
         }
 
-        const nextSessionNumber = meetings.length > 0
-            ? Math.max(...meetings.map(m => m.sessionNumber)) + 1
-            : 1;
+        try {
+            const response = await apiClient.post('/meetings/create', {
+                workspaceId,
+                title: newMeetingTitle,
+                meetingDate: newMeetingDate,
+                bookId: newMeetingBookId,
+                attendees: newMeetingParticipants.map(p => p.id)
+            });
 
-        const newMeeting: Meeting = {
-            id: Date.now().toString(),
-            sessionNumber: nextSessionNumber,
-            title: newMeetingTitle,
-            date: newMeetingDate,
-            participants: newMeetingParticipants,
-            book: newMeetingBook,
-        };
+            if (response.data.success) {
+                showToast('미팅 문서가 생성되었습니다.', 'success');
+                setIsCreateModalOpen(false);
+                // Reset form
+                setNewMeetingTitle('');
+                setNewMeetingDate('');
+                setNewMeetingBookId('');
+                setNewMeetingBookTitle('');
+                setNewMeetingParticipants([]);
 
-        setMeetings([...meetings, newMeeting]);
-        setIsCreateModalOpen(false);
-        setNewMeetingTitle('');
-        setNewMeetingDate('');
-        setNewMeetingBook('');
-        setNewMeetingParticipants([]);
-        showToast('새 문서가 생성되었습니다.', 'success');
-
-        // Navigate to the new meeting detail page
-        router.push(`/workspace/${workspaceId}/meetings/${newMeeting.id}`);
-    };
-
-    const toggleParticipant = (participant: string) => {
-        if (newMeetingParticipants.includes(participant)) {
-            setNewMeetingParticipants(newMeetingParticipants.filter(p => p !== participant));
-        } else {
-            setNewMeetingParticipants([...newMeetingParticipants, participant]);
+                // Navigate to the new meeting
+                router.push(`/workspace/${workspaceId}/meetings/${response.data.data.id}`);
+            } else {
+                showToast(response.data.message || '미팅 생성에 실패했습니다.', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to create meeting:', error);
+            showToast('미팅 생성 중 오류가 발생했습니다.', 'error');
         }
     };
 
-    const handleAddNewBook = () => {
+    // Member Search Debounce
+    useEffect(() => {
+        if (!memberSearchQuery.trim() || !workspaceId) {
+            setSearchResults([]);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsSearchingMembers(true);
+            try {
+                const response = await apiClient.post('/members/search', {
+                    workspaceId,
+                    keyword: memberSearchQuery
+                });
+                if (response.data.success) {
+                    setSearchResults(response.data.data);
+                }
+            } catch (error) {
+                console.error('Failed to search members:', error);
+            } finally {
+                setIsSearchingMembers(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [memberSearchQuery, workspaceId]);
+
+    const addParticipant = (member: Member) => {
+        if (!newMeetingParticipants.some(p => p.id === member.id)) {
+            setNewMeetingParticipants([...newMeetingParticipants, member]);
+        }
+        setMemberSearchQuery(''); // Clear search after selection
+        setSearchResults([]);
+    };
+
+    const removeParticipant = (memberId: string) => {
+        setNewMeetingParticipants(newMeetingParticipants.filter(p => p.id !== memberId));
+    };
+
+    const handleAddNewBook = async () => {
         if (!newBookInput.trim()) {
             showToast('책 제목을 입력해주세요.', 'error');
             return;
         }
-        if (availableBooks.includes(newBookInput.trim())) {
-            showToast('이미 등록된 책입니다.', 'error');
-            return;
+
+        try {
+            const response = await apiClient.post('/books/create', {
+                workspaceId,
+                title: newBookInput.trim()
+            });
+
+            if (response.data.success) {
+                const newBook = response.data.data;
+                setAvailableBooks([...availableBooks, newBook]);
+                setNewMeetingBookId(newBook.id);
+                setNewMeetingBookTitle(newBook.title);
+                setNewBookInput('');
+                setIsAddingNewBook(false);
+                setShowBookDropdown(false);
+                showToast('새 책이 추가되었습니다.', 'success');
+            } else {
+                showToast(response.data.message || '책 등록에 실패했습니다.', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to create book:', error);
+            showToast('책 등록 중 오류가 발생했습니다.', 'error');
         }
-        setNewMeetingBook(newBookInput.trim());
-        setAvailableBooks([...availableBooks, newBookInput.trim()]);
-        setNewBookInput('');
-        setIsAddingNewBook(false);
-        setShowBookDropdown(false);
-        showToast('새 책이 추가되었습니다.', 'success');
     };
 
     const handleRowClick = (meetingId: string) => {
         router.push(`/workspace/${workspaceId}/meetings/${meetingId}`);
     };
-
-    // 페이지네이션
-    const totalPages = Math.ceil(filteredMeetings.length / itemsPerPage);
-    const paginatedMeetings = filteredMeetings.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    // 회차 목록 (중복 제거)
-    const sessionNumbers = Array.from(new Set(meetings.map(m => m.sessionNumber))).sort((a, b) => a - b);
 
     if (!workspaceId) {
         return (
@@ -234,7 +295,7 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                 <div className="mb-8 flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">독서 모임</h1>
-                        <p className="text-gray-600">회차별 진행 문서를 확인하고 관리하세요.</p>
+                        <p className="text-gray-600">진행된 미팅 문서를 확인하고 관리하세요.</p>
                     </div>
                     <Button onClick={() => setIsCreateModalOpen(true)} className="flex-shrink-0 whitespace-nowrap">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -247,25 +308,6 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                 {/* Filters */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
                     <div className="flex flex-wrap items-end gap-3">
-                        {/* 회차 선택 */}
-                        <div className="flex-1 min-w-[150px]">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                회차
-                            </label>
-                            <select
-                                value={selectedSession}
-                                onChange={(e) => setSelectedSession(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                            >
-                                <option value="all">전체</option>
-                                {sessionNumbers.map(num => (
-                                    <option key={num} value={num.toString()}>
-                                        {num}회차
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
                         {/* 제목 검색 */}
                         <div className="flex-1 min-w-[200px]">
                             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -280,30 +322,26 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                             />
                         </div>
 
-                        {/* 시작 날짜 */}
-                        <div className="flex-1 min-w-[150px]">
+                        {/* 기간 필터 */}
+                        <div className="flex-1 min-w-[300px]">
                             <label className="block text-xs font-medium text-gray-700 mb-1">
-                                시작 날짜
+                                기간
                             </label>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                            />
-                        </div>
-
-                        {/* 종료 날짜 */}
-                        <div className="flex-1 min-w-[150px]">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                종료 날짜
-                            </label>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                            />
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                                />
+                                <span className="text-gray-500">~</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                                />
+                            </div>
                         </div>
 
                         {/* 필터 초기화 버튼 */}
@@ -318,50 +356,50 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                     </div>
                 </div>
 
-                {/* Results Summary */}
-                <div className="mb-4 text-sm text-gray-600">
-                    총 <span className="font-semibold text-gray-900">{filteredMeetings.length}</span>개의 문서
-                </div>
-
                 {/* Meetings Table */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    {/* Results Summary */}
+                    <div className="px-6 py-4 border-b border-gray-200 text-sm text-gray-600">
+                        총 <span className="font-semibold text-gray-900">{totalCount}</span>개의 문서
+                    </div>
+
                     {isLoading ? (
                         <div className="p-12 text-center text-gray-500">
                             로딩 중...
                         </div>
-                    ) : paginatedMeetings.length === 0 ? (
+                    ) : meetings.length === 0 ? (
                         <div className="p-12 text-center text-gray-500">
-                            검색 결과가 없습니다.
+                            등록된 미팅이 없습니다.
                         </div>
                     ) : (
                         <>
                             <table className="w-full">
                                 <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">회차</th>
+                                        {/* <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">회차</th> */}
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">문서 제목</th>
                                         <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">진행 일자</th>
-                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">참가자</th>
+                                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">참가자 수</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200">
-                                    {paginatedMeetings.map((meeting) => (
+                                    {meetings.map((meeting, index) => (
                                         <tr
                                             key={meeting.id}
                                             onClick={() => handleRowClick(meeting.id)}
                                             className="hover:bg-gray-50 transition-colors cursor-pointer"
                                         >
-                                            <td className="px-6 py-4">
+                                            {/* <td className="px-6 py-4">
                                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-700">
                                                     {meeting.sessionNumber}회차
                                                 </span>
-                                            </td>
+                                            </td> */}
                                             <td className="px-6 py-4">
                                                 <div className="font-medium text-gray-900">{meeting.title}</div>
-                                                <div className="text-sm text-gray-500">{meeting.book}</div>
+                                                <div className="text-sm text-gray-500">{meeting.bookTitle || '책 미정'}</div>
                                             </td>
                                             <td className="px-6 py-4 text-gray-600">
-                                                {new Date(meeting.date).toLocaleDateString('ko-KR', {
+                                                {new Date(meeting.meetingDate).toLocaleDateString('ko-KR', {
                                                     year: 'numeric',
                                                     month: 'long',
                                                     day: 'numeric'
@@ -369,24 +407,7 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="flex -space-x-2">
-                                                        {meeting.participants.slice(0, 3).map((participant, idx) => (
-                                                            <div
-                                                                key={idx}
-                                                                className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center"
-                                                                title={participant}
-                                                            >
-                                                                <span className="text-xs font-medium text-gray-600">
-                                                                    {participant.charAt(0)}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    {meeting.participants.length > 3 && (
-                                                        <span className="text-sm text-gray-500">
-                                                            +{meeting.participants.length - 3}
-                                                        </span>
-                                                    )}
+                                                    <span className="text-sm text-gray-700">{meeting.attendeeCount}명</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -395,58 +416,57 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                             </table>
 
                             {/* Pagination */}
-                            {totalPages > 1 && (
-                                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-center gap-2">
+                            {/* Pagination */}
+                            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1}
+                                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                                     <button
-                                        onClick={() => setCurrentPage(1)}
-                                        disabled={currentPage === 1}
-                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`px-3 py-1 rounded cursor-pointer ${currentPage === page
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                            }`}
                                     >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                                        </svg>
+                                        {page}
                                     </button>
-                                    <button
-                                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                                        disabled={currentPage === 1}
-                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                        </svg>
-                                    </button>
-                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`px-3 py-1 rounded cursor-pointer ${currentPage === page
-                                                ? 'bg-emerald-600 text-white'
-                                                : 'text-gray-600 hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            {page}
-                                        </button>
-                                    ))}
-                                    <button
-                                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                                        disabled={currentPage === totalPages}
-                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        onClick={() => setCurrentPage(totalPages)}
-                                        disabled={currentPage === totalPages}
-                                        className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                    >
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                                        </svg>
-                                    </button>
-                                </div>
-                            )}
+                                ))}
+                                <button
+                                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className="p-2 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
                         </>
                     )}
                 </div>
@@ -460,7 +480,8 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                     setIsCreateModalOpen(false);
                     setNewMeetingTitle('');
                     setNewMeetingDate('');
-                    setNewMeetingBook('');
+                    setNewMeetingBookId('');
+                    setNewMeetingBookTitle('');
                     setNewMeetingParticipants([]);
                     setIsAddingNewBook(false);
                     setNewBookInput('');
@@ -502,11 +523,14 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                         </label>
 
                         {/* Selected Book Badge */}
-                        {newMeetingBook && (
+                        {newMeetingBookId && (
                             <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-100 text-pink-700 rounded-md text-sm font-medium">
-                                {newMeetingBook}
+                                {newMeetingBookTitle}
                                 <button
-                                    onClick={() => setNewMeetingBook('')}
+                                    onClick={() => {
+                                        setNewMeetingBookId('');
+                                        setNewMeetingBookTitle('');
+                                    }}
                                     className="hover:bg-pink-200 rounded-full p-0.5 cursor-pointer"
                                 >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -517,7 +541,7 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                         )}
 
                         {/* Book Input Field */}
-                        {!newMeetingBook && (
+                        {!newMeetingBookId && (
                             <div>
                                 <input
                                     type="text"
@@ -538,9 +562,10 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                                             <div className="space-y-2 mb-3">
                                                 {availableBooks.map((book) => (
                                                     <button
-                                                        key={book}
+                                                        key={book.id}
                                                         onClick={() => {
-                                                            setNewMeetingBook(book);
+                                                            setNewMeetingBookId(book.id);
+                                                            setNewMeetingBookTitle(book.title);
                                                             setShowBookDropdown(false);
                                                             setNewBookInput('');
                                                         }}
@@ -551,7 +576,7 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                                             </svg>
                                                         </div>
-                                                        <span className="text-sm text-gray-700 group-hover:text-gray-900">{book}</span>
+                                                        <span className="text-sm text-gray-700 group-hover:text-gray-900">{book.title}</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -611,34 +636,81 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             참가자 <span className="text-red-500">*</span>
                         </label>
-                        <div className="space-y-2 border border-gray-200 rounded-lg p-4">
-                            {availableParticipants.map((participant) => (
-                                <label
-                                    key={participant}
-                                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+
+                        {/* Selected Participants Tags */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            {newMeetingParticipants.map((member) => (
+                                <span
+                                    key={member.id}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800"
                                 >
-                                    <input
-                                        type="checkbox"
-                                        checked={newMeetingParticipants.includes(participant)}
-                                        onChange={() => toggleParticipant(participant)}
-                                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                            <span className="text-sm font-medium text-gray-600">
-                                                {participant.charAt(0)}
-                                            </span>
-                                        </div>
-                                        <span className="text-sm text-gray-900">{participant}</span>
-                                    </div>
-                                </label>
+                                    {member.name}
+                                    <button
+                                        onClick={() => removeParticipant(member.id)}
+                                        className="hover:bg-emerald-200 rounded-full p-0.5 cursor-pointer"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </span>
                             ))}
                         </div>
-                        {newMeetingParticipants.length > 0 && (
-                            <p className="mt-2 text-sm text-gray-600">
-                                {newMeetingParticipants.length}명 선택됨
-                            </p>
-                        )}
+
+                        {/* Search Input */}
+                        <div className="relative">
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={memberSearchQuery}
+                                    onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                    placeholder="이름으로 멤버 검색..."
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                                {isSearchingMembers && (
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                        <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full"></div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Search Results Dropdown */}
+                            {memberSearchQuery && searchResults.length > 0 && (
+                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                    {searchResults.map((member) => {
+                                        const isSelected = newMeetingParticipants.some(p => p.id === member.id);
+                                        return (
+                                            <button
+                                                key={member.id}
+                                                onClick={() => !isSelected && addParticipant(member)}
+                                                disabled={isSelected}
+                                                className={`w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-50 transition-colors ${isSelected ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'cursor-pointer'
+                                                    }`}
+                                            >
+                                                <div>
+                                                    <div className="text-sm font-medium text-gray-900">{member.name}</div>
+                                                    <div className="text-xs text-gray-500">{member.email}</div>
+                                                </div>
+                                                {isSelected && (
+                                                    <span className="text-xs text-emerald-600 font-medium">선택됨</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {memberSearchQuery && !isSearchingMembers && searchResults.length === 0 && (
+                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
+                                    검색 결과가 없습니다.
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
@@ -648,7 +720,8 @@ export default function MeetingsPage({ params }: { params: Promise<{ id: string 
                                 setIsCreateModalOpen(false);
                                 setNewMeetingTitle('');
                                 setNewMeetingDate('');
-                                setNewMeetingBook('');
+                                setNewMeetingBookId('');
+                                setNewMeetingBookTitle('');
                                 setNewMeetingParticipants([]);
                                 setIsAddingNewBook(false);
                                 setNewBookInput('');

@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL,
+    baseURL: typeof window === 'undefined'
+        ? process.env.NEXT_PUBLIC_API_URL
+        : '/api/proxy',
     headers: {
         'Content-Type': 'application/json',
     },
