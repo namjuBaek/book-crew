@@ -32,10 +32,6 @@ const nextConfig: NextConfig = {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin', // 민감한 URL 정보 보호
           },
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self';", // XSS 방지 (개발 편의상 unsafe-inline 허용)
-          },
         ],
       },
     ];
