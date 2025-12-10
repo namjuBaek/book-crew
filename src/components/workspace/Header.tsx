@@ -22,10 +22,12 @@ export const WorkspaceHeader: React.FC<HeaderProps> = ({ workspaceName, workspac
     const handleLogout = async () => {
         try {
             await apiClient.post('/users/logout');
+            localStorage.removeItem('accessToken');
             showToast('로그아웃되었습니다.', 'success');
             router.push('/login');
         } catch (error) {
             console.error('Logout failed:', error);
+            localStorage.removeItem('accessToken');
             showToast('로그아웃에 실패했습니다.', 'error');
             // 실패해도 로그인 페이지로 이동 (토큰 만료 등일 수 있음)
             router.push('/login');

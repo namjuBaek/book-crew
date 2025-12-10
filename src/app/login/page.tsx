@@ -65,6 +65,13 @@ export default function LoginPage() {
 
             const data = response.data;
 
+            if (data.accessToken) {
+                localStorage.setItem('accessToken', data.accessToken);
+            } else if (data.data && data.data.accessToken) {
+                // 구조가 중첩되어 있을 경우를 대비
+                localStorage.setItem('accessToken', data.data.accessToken);
+            }
+
             showToast(data.message || '로그인에 성공했습니다!', 'success');
 
             // 성공 시 로딩 상태 유지 (페이지 이동까지)
