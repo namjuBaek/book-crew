@@ -149,18 +149,12 @@ export default function LoginPage() {
                             autoComplete="current-password"
                         />
 
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center">
                             <Checkbox
                                 label="자동 로그인"
                                 checked={autoLogin}
                                 onChange={(e) => setAutoLogin(e.target.checked)}
                             />
-                            <Link
-                                href="/forgot-password"
-                                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium hover:underline transition-colors"
-                            >
-                                비밀번호 찾기
-                            </Link>
                         </div>
 
                         <div className="space-y-4 pt-2">
