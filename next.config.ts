@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/proxy/:path*',
+        source: '/:path*',
         destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/:path*`,
       },
     ];
